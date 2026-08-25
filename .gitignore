@@ -1,0 +1,31 @@
+# build dirs
+build/
+build-*/
+*.o
+*.obj
+
+# binaries & packages
+*.exe
+*.msi
+*.zip
+dist/
+
+# C# build output
+src/csharp/KradUpdate/bin/
+src/csharp/KradUpdate/obj/
+
+# Qt / CMake
+CMakeCache.txt
+CMakeFiles/
+*.cmake.bak
+moc_*.cpp
+qrc_*.cpp
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# logs & temp
+*.log
+*.tmp

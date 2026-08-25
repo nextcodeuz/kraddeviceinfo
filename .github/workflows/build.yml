@@ -1,0 +1,62 @@
+name: Build Windows exe + deploy site
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 5.15.2 (mingw)
+        run: |
+          pip install aqtinstall
+          python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 --outputdir D:\qt
+
+      - name: Install MinGW-w64 (POSIX threads)
+        run: |
+          choco install mingw -y --version=13.2.0 --force
+          echo "C:\ProgramData\mingw64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure
+        run: |
+          cmake -B build -G "MinGW Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH=D:\qt\5.15.2\mingw81_64
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Package portable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/KradDeviceInfo-portable/platforms | Out-Null
+          Copy-Item build/kraddeviceinfo.exe            dist/KradDeviceInfo-portable/
+          Copy-Item D:/qt/5.15.2/mingw81_64/bin/Qt5Core.dll, `
+                    D:/qt/5.15.2/mingw81_64/bin/Qt5Gui.dll, `
+                    D:/qt/5.15.2/mingw81_64/bin/Qt5Widgets.dll, `
+                    D:/qt/5.15.2/mingw81_64/bin/Qt5Concurrent.dll dist/KradDeviceInfo-portable/
+          Copy-Item D:/qt/5.15.2/mingw81_64/plugins/platforms/qwindows.dll dist/KradDeviceInfo-portable/platforms/
+          Copy-Item LICENSE,README.md dist/KradDeviceInfo-portable/
+          Compress-Archive -Path dist/KradDeviceInfo-portable `
+            -DestinationPath dist/KradDeviceInfo-portable-win64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KradDeviceInfo-win64
+          path: dist/*
+
+      - name: Deploy site to Cloudflare Pages
+        if: ${{ secrets.CF_API_TOKEN != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: npx wrangler@latest pages deploy site --project-name kraddeviceinfo
+
+      - name: Attach artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*

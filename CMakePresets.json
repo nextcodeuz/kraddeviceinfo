@@ -1,0 +1,39 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "win-msvc",
+            "displayName": "Windows MSVC x64 (VS 2022)",
+            "generator": "Visual Studio 17 2022",
+            "architecture": { "value": "x64", "strategy": "set" },
+            "binaryDir": "${sourceDir}/build-msvc",
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "C:/Qt/5.15.2/msvc2019_64"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "win-mingw",
+            "displayName": "Windows MinGW-w64 x64",
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/build-mingw",
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "C:/Qt/5.15.2/mingw81_64",
+                "CMAKE_CXX_COMPILER": "g++"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "linux-demo",
+            "displayName": "Linux demo build (dev/CI)",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build-linux",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "win-msvc", "configurePreset": "win-msvc", "configuration": "Release" },
+        { "name": "win-mingw", "configurePreset": "win-mingw" },
+        { "name": "linux-demo", "configurePreset": "linux-demo" }
+    ]
+}

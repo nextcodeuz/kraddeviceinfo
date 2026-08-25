@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- krad.device.info - MSI installer (built with wixl from msitools) -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="KradDeviceInfo"
+           Language="1033"
+           Version="1.1.0.0"
+           Manufacturer="Krad"
+           UpgradeCode="235b0564-1e25-42f8-8607-238f0d7b631a">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             Manufacturer="Krad"
+             Description="KradDeviceInfo - complete Windows hardware and software inventory"
+             Comments="krad.device.info"/>
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
+    <Media Id="1" Cabinet="KradDeviceInfo.cab" EmbedCab="yes"/>
+
+    <Property Id="ARPPRODUCTICON" Value="KradIcon"/>
+    <Property Id="ARPHELPLINK" Value="https://kraddeviceinfo.pages.dev"/>
+    <Icon Id="KradIcon" SourceFile="resources/icons/krad.ico"/>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="KradDeviceInfo">
+
+          <Component Id="MainExe" Guid="6e072ab9-209b-4a76-b515-e9662afc5112">
+            <File Id="KradExe" Source="msi-src/kraddeviceinfo.exe"
+                  Name="kraddeviceinfo.exe" KeyPath="yes"/>
+            <Shortcut Id="StartMenuShortcut" Name="KradDeviceInfo"
+                      Directory="AppStartMenu" WorkingDirectory="INSTALLDIR"
+                      Icon="KradIcon" Advertise="yes"/>
+            <Shortcut Id="DesktopShortcut" Name="KradDeviceInfo"
+                      Directory="DesktopFolder" WorkingDirectory="INSTALLDIR"
+                      Icon="KradIcon" Advertise="yes"/>
+          </Component>
+
+          <Component Id="Qt5Core" Guid="a1b2c3d4-0001-4a6b-8c9d-000000000001">
+            <File Id="Qt5CoreDll" Source="msi-src/Qt5Core.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="Qt5Gui" Guid="a1b2c3d4-0002-4a6b-8c9d-000000000002">
+            <File Id="Qt5GuiDll" Source="msi-src/Qt5Gui.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="Qt5Widgets" Guid="a1b2c3d4-0003-4a6b-8c9d-000000000003">
+            <File Id="Qt5WidgetsDll" Source="msi-src/Qt5Widgets.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="Qt5Concurrent" Guid="a1b2c3d4-0004-4a6b-8c9d-000000000004">
+            <File Id="Qt5ConcurrentDll" Source="msi-src/Qt5Concurrent.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="Qt5Network" Guid="a1b2c3d4-0005-4a6b-8c9d-000000000005">
+            <File Id="Qt5NetworkDll" Source="msi-src/Qt5Network.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="LibGcc" Guid="a1b2c3d4-0006-4a6b-8c9d-000000000006">
+            <File Id="LibGccDll" Source="msi-src/libgcc_s_seh-1.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="LibStdCpp" Guid="a1b2c3d4-0007-4a6b-8c9d-000000000007">
+            <File Id="LibStdCppDll" Source="msi-src/libstdc++-6.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="LibWinPthread" Guid="a1b2c3d4-0008-4a6b-8c9d-000000000008">
+            <File Id="LibWinPthreadDll" Source="msi-src/libwinpthread-1.dll" KeyPath="yes"/>
+          </Component>
+          <Component Id="KradUpdateExe" Guid="a1b2c3d4-000c-4a6b-8c9d-00000000000c">
+            <File Id="KradUpdateExeFile" Source="msi-src/KradUpdate.exe" KeyPath="yes"/>
+          </Component>
+          <Component Id="LicenseFile" Guid="a1b2c3d4-0009-4a6b-8c9d-000000000009">
+            <File Id="LicenseTxt" Source="msi-src/LICENSE.txt" KeyPath="yes"/>
+          </Component>
+          <Component Id="ReadmeFile" Guid="a1b2c3d4-000a-4a6b-8c9d-00000000000a">
+            <File Id="ReadmeMd" Source="msi-src/README.md" KeyPath="yes"/>
+          </Component>
+
+          <Directory Id="PlatDir" Name="platforms">
+            <Component Id="QWindowsPlugin" Guid="a1b2c3d4-0010-4a6b-8c9d-000000000010">
+              <File Id="QWindowsDll" Source="msi-src/platforms/qwindows.dll" KeyPath="yes"/>
+            </Component>
+          </Directory>
+
+          <Directory Id="StylesDir" Name="styles">
+            <Component Id="QWindowsVistaStyle" Guid="a1b2c3d4-0011-4a6b-8c9d-000000000011">
+              <File Id="QWindowsVistaDll" Source="msi-src/styles/qwindowsvistastyle.dll" KeyPath="yes"/>
+            </Component>
+          </Directory>
+
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppStartMenu" Name="KradDeviceInfo"/>
+      </Directory>
+      <Directory Id="DesktopFolder"/>
+    </Directory>
+
+    <Feature Id="Main" Title="KradDeviceInfo" Level="1"
+             Description="Complete Windows hardware and software inventory"
+             AllowAdvertise="no" Absent="disallow">
+      <ComponentRef Id="MainExe"/>
+      <ComponentRef Id="Qt5Core"/>
+      <ComponentRef Id="Qt5Gui"/>
+      <ComponentRef Id="Qt5Widgets"/>
+      <ComponentRef Id="Qt5Concurrent"/>
+      <ComponentRef Id="Qt5Network"/>
+      <ComponentRef Id="LibGcc"/>
+      <ComponentRef Id="LibStdCpp"/>
+      <ComponentRef Id="LibWinPthread"/>
+      <ComponentRef Id="KradUpdateExe"/>
+      <ComponentRef Id="LicenseFile"/>
+      <ComponentRef Id="ReadmeFile"/>
+      <ComponentRef Id="QWindowsPlugin"/>
+      <ComponentRef Id="QWindowsVistaStyle"/>
+    </Feature>
+  </Product>
+</Wix>

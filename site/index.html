@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KradDeviceInfo — Windows Hardware & Software Inventory</title>
+<meta name="description" content="Complete Windows hardware and software inventory tool. CPU, RAM, GPU, disks, network, monitors, USB, battery, benchmarks and reports. Portable, no installation.">
+<meta property="og:title" content="KradDeviceInfo v1.1.0">
+<meta property="og:description" content="Complete Windows hardware inventory — portable exe, real-time monitoring, benchmarks, reports.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='4' y='4' width='56' height='56' rx='14' fill='%232563eb'/><circle cx='32' cy='34' r='13' fill='none' stroke='white' stroke-width='5'/><line x1='32' y1='34' x2='41' y2='25' stroke='white' stroke-width='5' stroke-linecap='round'/></svg>">
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --line:#28324a; --txt:#e6edf3;
+  --dim:#8b949e; --accent:#4fc3f7; --blue:#2563eb; --ok:#3fb950;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font:15px/1.6 'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* nav */
+nav{position:sticky;top:0;z-index:10;background:#0d1117ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:22px;height:60px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+.logo .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#2563eb,#4fc3f7);display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+nav .links{margin-left:auto;display:flex;gap:20px;font-size:14px}
+nav .links a{color:var(--dim)} nav .links a:hover{color:var(--txt)}
+
+/* hero */
+header{padding:72px 0 40px;text-align:center}
+.badge{display:inline-block;border:1px solid var(--line);border-radius:20px;color:var(--dim);font-size:13px;padding:3px 14px;margin-bottom:18px}
+h1{font-size:clamp(30px,5vw,46px);font-weight:800;letter-spacing:-.02em}
+h1 span{background:linear-gradient(90deg,#4fc3f7,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--dim);max-width:640px;margin:14px auto 30px;font-size:17px}
+.cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:9px;border-radius:10px;padding:12px 26px;font-weight:600;font-size:15px;transition:.15s}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.primary:hover{background:#1d4ed8;transform:translateY(-1px)}
+.btn.ghost{border:1px solid var(--line);color:var(--txt)}
+.btn.ghost:hover{background:var(--panel)}
+.meta{color:var(--dim);font-size:12.5px;margin-top:14px}
+
+/* sections */
+section{padding:52px 0}
+h2{font-size:26px;font-weight:700;margin-bottom:8px}
+.lead{color:var(--dim);margin-bottom:26px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card h3{font-size:15px;margin-bottom:6px;color:var(--accent)}
+.card p{font-size:13.5px;color:var(--dim)}
+
+/* downloads */
+.dl{display:grid;gap:14px}
+.dl-item{display:flex;align-items:center;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;flex-wrap:wrap}
+.dl-item .ic{font-size:26px}
+.dl-item .info{flex:1;min-width:220px}
+.dl-item .info b{font-size:16px}
+.dl-item .info .d{color:var(--dim);font-size:13px;margin-top:2px}
+.dl-item .hash{font-family:ui-monospace,monospace;font-size:11px;color:var(--dim);word-break:break-all;margin-top:6px}
+.dl-item .btn{white-space:nowrap}
+.recommended{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue),0 8px 30px #2563eb22}
+.tag{background:#1f6feb33;border:1px solid #1f6feb88;color:var(--accent);border-radius:20px;padding:1px 10px;font-size:11.5px;margin-left:8px;vertical-align:middle}
+
+/* screenshots */
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.shots img{width:100%;border-radius:10px;border:1px solid var(--line);transition:.15s}
+.shots img:hover{transform:scale(1.015);border-color:var(--accent)}
+
+/* cli */
+pre{background:#10151f;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font:13px/1.7 ui-monospace,'Cascadia Code',Consolas,monospace}
+pre .c{color:var(--dim)} pre .k{color:var(--accent)}
+
+/* steps */
+ol.steps{counter-reset:s;list-style:none;display:grid;gap:12px}
+ol.steps li{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 14px 52px;position:relative;font-size:14.5px}
+ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:8px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+code{background:#1b2230;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12.5px;font-family:ui-monospace,monospace}
+
+footer{border-top:1px solid var(--line);padding:30px 0;color:var(--dim);font-size:13px;text-align:center}
+footer .id{font-family:ui-monospace,monospace;color:var(--accent)}
+@media(max-width:640px){nav .links{display:none}}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <div class="logo"><span class="dot">⚡</span>Krad<span style="color:var(--accent)">DeviceInfo</span></div>
+  <div class="links">
+    <a href="#features">Features</a>
+    <a href="#download">Download</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="#cli">CLI</a>
+    <a href="#deploy">Self-host</a>
+  </div>
+</div></nav>
+
+<header class="wrap">
+  <div class="badge">v1.1.0 &nbsp;•&nbsp; <span class="id" style="font-family:ui-monospace,monospace">krad.device.info</span> &nbsp;•&nbsp; Windows 7–11 x64</div>
+  <h1>Complete Windows hardware <span>inventory</span></h1>
+  <p class="sub">CPU, RAM, GPU, disks, network, monitors, USB, battery, BIOS/SMBIOS — with real-time monitoring, benchmarks and professional reports. One portable executable, zero installation.</p>
+  <div class="cta">
+    <a class="btn primary" href="downloads/KradDeviceInfo-1.1.0-x64.msi" download>⬇ Download installer (MSI, 20 MB)</a>
+    <a class="btn ghost" href="downloads/KradDeviceInfo-1.1.0-portable-win64.zip" download>⬇ Portable ZIP</a>
+    <a class="btn ghost" href="#screenshots">View screenshots</a>
+  </div>
+  <div class="meta">No admin required • No telemetry • MIT license</div>
+</header>
+
+<section id="features" class="wrap">
+  <h2>Everything it shows</h2>
+  <p class="lead">Native Win32 / WMI / SMBIOS / PDH backend — no external dependencies.</p>
+  <div class="grid">
+    <div class="card"><h3>🖥 CPU</h3><p>Brand, cores, caches L1–L3, instruction sets up to AVX-512, clocks, hypervisor, code name.</p></div>
+    <div class="card"><h3>🧠 Memory</h3><p>Per-module SPD: manufacturer, part number, speed MT/s, slot map, ECC.</p></div>
+    <div class="card"><h3>🎮 GPU</h3><p>VRAM, vendor/device IDs, driver version &amp; date, video mode — via DXGI + SetupAPI.</p></div>
+    <div class="card"><h3>💾 Storage</h3><p>NVMe/SATA/USB, SSD/HDD, health status, firmware, TRIM, partitions, volumes.</p></div>
+    <div class="card"><h3>📡 Network</h3><p>Adapters, MAC, IPv4/6, gateway, DNS, DHCP, link speed, traffic counters, live throughput.</p></div>
+    <div class="card"><h3>📺 Devices</h3><p>Monitors with EDID parsing, USB devices, battery wear %, audio endpoints.</p></div>
+    <div class="card"><h3>🔧 BIOS / SMBIOS</h3><p>Raw firmware table parser: UUID, board serial, boot mode, Secure Boot.</p></div>
+    <div class="card"><h3>📦 Software</h3><p>Installed apps, startup entries, Windows services — searchable.</p></div>
+    <div class="card"><h3>🏁 Benchmarks</h3><p>CPU single/multi, memory bandwidth + latency, disk sequential &amp; 4K random IOPS.</p></div>
+    <div class="card"><h3>📄 Reports</h3><p>Export to JSON, styled HTML, TXT, CSV — from GUI or command line.</p></div>
+    <div class="card"><h3>🌐 Internet: speed test</h3><p>Real download/upload/ping measurement against Cloudflare's global edge network.</p></div>
+    <div class="card"><h3>🌍 Public IP &amp; geo</h3><p>Your public IP, country, city, ISP and ASN — one click.</p></div>
+    <div class="card"><h3>🛰 DNS benchmark</h3><p>Latency race between Cloudflare, Google, Quad9 and OpenDNS — find your fastest resolver.</p></div>
+    <div class="card"><h3>🕐 NTP clock check</h3><p>Measure your clock drift against NTP time servers to the millisecond.</p></div>
+    <div class="card"><h3>📱 Web dashboard (LAN)</h3><p>Built-in HTTP server: watch live CPU/RAM/GPU/disk/net from your phone's browser.</p></div>
+    <div class="card"><h3>🔗 Share report</h3><p>Upload the full report and get a shareable link instantly.</p></div>
+    <div class="card"><h3>⬆ Update check</h3><p>Notifies you when a new version is published — with SHA256-verified downloads.</p></div>
+  </div>
+</section>
+
+<section id="download" class="wrap">
+  <h2>Download</h2>
+  <p class="lead">Fully working builds, cross-compiled with MinGW-w64 + Qt 5.15.2. Verify hashes in <code>SHA256SUMS.txt</code>.</p>
+  <div class="dl">
+
+    <div class="dl-item recommended">
+      <div class="ic">📦</div>
+      <div class="info">
+        <b>Portable (recommended)</b><span class="tag">FULL GUI</span>
+        <div class="d">Unzip &amp; run <code>kraddeviceinfo.exe</code>. Includes all Qt runtime DLLs. Windows 7–11 x64.</div>
+        <div class="hash">SHA256: cc308341d3a499662b0beb1dba7a286a1cd87fad2c531a10f8cd369fd9789404</div>
+      </div>
+    <div class="dl-item recommended">
+      <div class="ic">🧰</div>
+      <div class="info">
+        <b>Windows Installer (MSI)</b><span class="tag">RECOMMENDED</span>
+        <div class="d">Full setup: installs to Program Files, Start menu + desktop shortcuts, clean uninstall. Windows 7–11 x64.</div>
+        <div class="hash">SHA256: b2977097fd40ab51d37fa7d9ad74de5060ee0888c94ffe882132bf66c300803b</div>
+      </div>
+      <a class="btn primary" href="downloads/KradDeviceInfo-1.1.0-x64.msi" download>⬇ MSI · 20 MB</a>
+    </div>
+
+    <div class="dl-item">
+      <div class="ic">📦</div>
+      <div class="info">
+        <b>Portable ZIP</b><span class="tag">NO INSTALL</span>
+        <div class="d">Unzip anywhere &amp; run <code>kraddeviceinfo.exe</code>. All Qt runtime DLLs included.</div>
+        <div class="hash">SHA256: df3856fe44966f7d5f86c14e0c229fc83939db23ab025ee261a841222364e086</div>
+      </div>
+      <a class="btn ghost" href="downloads/KradDeviceInfo-1.1.0-portable-win64.zip" download>⬇ ZIP · 11 MB</a>
+    </div>
+
+
+    </div>
+
+    <div class="dl-item">
+      <div class="ic">⚡</div>
+      <div class="info">
+        <b>Standalone GUI exe</b>
+        <div class="d">Single 1.3 MB executable — requires Qt 5.15 DLLs installed (use portable if unsure).</div>
+        <div class="hash">SHA256: 4422830af3a796955c4a03b4797479b7cebea1bf09d3097ff3098ee040dc733a</div>
+      </div>
+      <a class="btn ghost" href="downloads/kraddeviceinfo-gui.exe" download>⬇ EXE · 1.3 MB</a>
+    </div>
+
+    <div class="dl-item">
+      <div class="ic">🧪</div>
+      <div class="info">
+        <b>Core smoke test (console)</b>
+        <div class="d">Dependency-free console tool — prints every collector's output. Quick diagnostics.</div>
+        <div class="hash">SHA256: 7216553435e85eaf7e787e97f3a415dddd0fabd3285792c5a27c2896d7465b47</div>
+      </div>
+      <a class="btn ghost" href="downloads/krad_smoke.exe" download>⬇ EXE · 0.5 MB</a>
+    </div>
+
+    <div class="dl-item">
+      <div class="ic">⬆</div>
+      <div class="info">
+        <b>KradUpdate (C# / .NET 8)</b>
+        <div class="d">Standalone self-updater: checks the version manifest, verifies SHA256, applies updates with backup. Self-contained single file.</div>
+        <div class="hash">SHA256: 89bea9cf4777994c03e1058bf3eb31b3752a3cf72320bc81f2513c47d2b9551f</div>
+      </div>
+      <a class="btn ghost" href="downloads/KradUpdate.exe" download>⬇ EXE · 14 MB</a>
+    </div>
+
+    <div class="dl-item">
+      <div class="ic">🔐</div>
+      <div class="info">
+        <b>All checksums</b>
+        <div class="d">SHA256SUMS.txt — verify with <code>certutil -hashfile &lt;file&gt; SHA256</code></div>
+      </div>
+      <a class="btn ghost" href="downloads/SHA256SUMS.txt" download>⬇ TXT</a>
+    </div>
+
+  </div>
+</section>
+
+<section id="screenshots" class="wrap">
+  <h2>Screenshots</h2>
+  <p class="lead">Dark theme by default, light theme included.</p>
+  <div class="shots">
+    <img src="screenshots/screenshot_overview.png" alt="Overview dashboard">
+    <img src="screenshots/screenshot_cpu.png" alt="CPU page">
+    <img src="screenshots/screenshot_storage.png" alt="Storage page">
+    <img src="screenshots/screenshot_network.png" alt="Network page">
+    <img src="screenshots/screenshot_benchmark.png" alt="Benchmark page">
+    <img src="screenshots/screenshot_report.png" alt="Report page">
+  </div>
+</section>
+
+<section id="cli" class="wrap">
+  <h2>Command line</h2>
+  <p class="lead">The same exe works headless — perfect for scripting and inventory automation.</p>
+<pre><span class="c">:: export full report</span>
+kraddeviceinfo <span class="k">--export</span> json <span class="k">-o</span> C:\reports\pc.json
+kraddeviceinfo <span class="k">--export</span> html
+
+<span class="c">:: run benchmarks</span>
+kraddeviceinfo <span class="k">--bench</span> cpu,memory,disk <span class="k">--duration</span> 10
+
+<span class="c">:: live monitoring to console</span>
+kraddeviceinfo <span class="k">--monitor</span> <span class="k">--interval</span> 500</pre>
+</section>
+
+<section id="deploy" class="wrap">
+  <h2>Deploy this site yourself</h2>
+  <p class="lead">Static site — perfect for Cloudflare Pages (free). Three options:</p>
+  <ol class="steps">
+    <li><b>Dashboard upload:</b> dash.cloudflare.com → Workers &amp; Pages → Create → Pages → <i>Upload assets</i> → drop the <code>site/</code> folder → deploy. Done.</li>
+    <li><b>Wrangler CLI:</b> <code>npx wrangler pages deploy site --project-name kraddeviceinfo</code> (login once with <code>wrangler login</code>).</li>
+    <li><b>Git integration:</b> push to GitHub → Pages → connect repo → build command: none, output dir: <code>site</code>. Every push auto-deploys.</li>
+  </ol>
+</section>
+
+<footer>
+  <div class="wrap">
+    KradDeviceInfo v1.1.0 · <span class="id">krad.device.info</span> · Built with C++17 &amp; Qt · MIT License<br>
+    <small>Runs on Windows 7/8/8.1/10/11 and Windows Server 2008 R2+. No telemetry, no network access.</small>
+  </div>
+</footer>
+
+</body>
+</html>
