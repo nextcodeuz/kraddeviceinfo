@@ -167,6 +167,37 @@ if (KRAD_BUILD_TESTS AND WIN32)
     target_compile_definitions(krad_smoke PRIVATE UNICODE _UNICODE)
 endif()
 
+# windows TLS/HTTPS diagnostic (run: tls_test.exe)
+if (KRAD_BUILD_TESTS AND WIN32)
+    add_executable(tls_test tests/tls_test.cpp)
+    target_link_libraries(tls_test PRIVATE kradcore Qt5::Network Qt5::Core)
+    target_compile_definitions(tls_test PRIVATE UNICODE _UNICODE)
+    set(KRAD_GUI_TEST_SOURCES
+        tests/gui_online_test.cpp
+        src/app/export.cpp src/app/cli.cpp src/app/online.cpp
+        src/gui/mainwindow.cpp src/gui/theme.cpp
+        src/gui/widgets/gauge.cpp src/gui/widgets/chart.cpp
+        src/gui/widgets/pageparts.cpp src/gui/widgets/icons.cpp)
+    add_executable(gui_online_test ${KRAD_GUI_TEST_SOURCES})
+    target_link_libraries(gui_online_test PRIVATE kradcore Qt5::Widgets
+        Qt5::Concurrent Qt5::Network)
+    target_compile_definitions(gui_online_test PRIVATE UNICODE _UNICODE)
+elseif (KRAD_BUILD_TESTS AND NOT WIN32)
+    set(KRAD_GUI_TEST_SOURCES
+        tests/gui_online_test.cpp
+        src/app/export.cpp src/app/cli.cpp src/app/online.cpp
+        src/gui/mainwindow.cpp src/gui/theme.cpp
+        src/gui/widgets/gauge.cpp src/gui/widgets/chart.cpp
+        src/gui/widgets/pageparts.cpp src/gui/widgets/icons.cpp)
+    add_executable(gui_online_test ${KRAD_GUI_TEST_SOURCES})
+    target_include_directories(gui_online_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(gui_online_test PRIVATE kradcore Qt5::Widgets
+        Qt5::Concurrent Qt5::Network)
+    set_target_properties(gui_online_test PROPERTIES WIN32_EXECUTABLE FALSE)
+endif()
+
 # online services test (network + dashboard) - works on Linux demo backend too
 if (KRAD_BUILD_TESTS AND NOT WIN32)
     add_executable(online_test tests/online_test.cpp src/app/online.cpp)

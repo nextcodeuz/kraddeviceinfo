@@ -8,6 +8,10 @@
 #include "export.h"
 #include "../core/collect.h"
 #include "../core/bench.h"
+#include "../app/online.h"
+#include <QEventLoop>
+#include <QTimer>
+#include <QSslSocket>
 #include "../core/util.h"
 #include <krad/model.h>
 
@@ -138,6 +142,34 @@ static int cmd_benchmark(const std::string& what, int seconds,
     return 0;
 }
 
+static int cmd_tls_test() {
+    printf("TLS support : %s\n",
+           QSslSocket::supportsSsl() ? "YES" : "NO (missing OpenSSL DLLs!)");
+    printf("SSL library  : %s\n",
+           QSslSocket::sslLibraryBuildVersionString().toUtf8().constData());
+    if (QSslSocket::supportsSsl())
+        printf("SSL runtime  : %s\n",
+               QSslSocket::sslLibraryVersionString().toUtf8().constData());
+
+    krad::OnlineServices online;
+    QEventLoop loop;
+    QObject::connect(&online, &krad::OnlineServices::ipInfoReady,
+                     &loop, [&](const krad::IpGeoInfo& i) {
+        if (i.ok)
+            printf("HTTPS GET    : OK - your ip: %s (%s, %s)\n",
+                   i.ip.toUtf8().constData(),
+                   i.city.toUtf8().constData(),
+                   i.country.toUtf8().constData());
+        else
+            printf("HTTPS GET    : FAIL - %s\n", i.error.toUtf8().constData());
+        loop.quit();
+    });
+    QTimer::singleShot(20000, &loop, [&] { loop.quit(); });
+    online.fetchIpInfo();
+    loop.exec();
+    return 0;
+}
+
 static int cmd_monitor(int interval_ms) {
     collect::perf_init();
     printf("%-8s %-7s %-6s %-9s %-9s %-9s %-9s\n",
@@ -162,7 +194,7 @@ int run(const std::vector<std::string>& args) {
     std::string export_fmt, output, bench_what, drive;
     int seconds = 10, interval_ms = 1000;
     bool do_bench = false, do_monitor = false, want_help = false,
-         want_version = false;
+         want_version = false, do_tls = false;
 
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
@@ -179,6 +211,7 @@ int run(const std::vector<std::string>& args) {
         }
         else if (a == "--drive")                next(drive);
         else if (a == "--monitor")              do_monitor = true;
+        else if (a == "--tls-test")             do_tls = true;
         else if (a == "--interval") { std::string v; next(v); interval_ms = atoi(v.c_str()); }
         else if (a == "--help" || a == "-h")    want_help = true;
         else if (a == "--version" || a == "-V") want_version = true;
@@ -193,6 +226,7 @@ int run(const std::vector<std::string>& args) {
     if (want_help)       { print_usage(); code = 0; }
     else if (want_version){ printf("%s v%s\n", krad::APP_NAME, krad::APP_VERSION); code = 0; }
     else if (!export_fmt.empty())     code = cmd_export(export_fmt, output);
+    else if (do_tls)                  code = cmd_tls_test();
     else if (do_bench)                code = cmd_benchmark(bench_what, seconds, drive);
     else if (do_monitor)              code = cmd_monitor(interval_ms);
 

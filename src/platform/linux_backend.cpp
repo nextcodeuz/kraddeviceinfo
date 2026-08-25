@@ -255,9 +255,12 @@ PerfSample perf_sample() {
         int idx = 0;
         for (auto& t : split_string(trim_copy(l.substr(4)), ' ')) {
             if (t.empty()) continue;
-            if (idx < 5) j[idx] = strtoull(t.c_str(), nullptr, 10);
-            sum += j[idx];
-            if (idx == 3 || idx == 4) idle += j[idx];
+            std::uint64_t v = strtoull(t.c_str(), nullptr, 10);
+            sum += v;                       // total across all columns
+            if (idx < 5) {
+                j[idx] = v;
+                if (idx == 3 || idx == 4) idle += v;
+            }
             ++idx;
         }
         if (prev_total_j) {

@@ -2,6 +2,6 @@
   "version": "1.1.0",
   "url": "https://kraddeviceinfo.pages.dev/downloads/KradDeviceInfo-1.1.0-portable-win64.zip",
   "msi": "https://kraddeviceinfo.pages.dev/downloads/KradDeviceInfo-1.1.0-x64.msi",
-  "sha256": "df3856fe44966f7d5f86c14e0c229fc83939db23ab025ee261a841222364e086",
+  "sha256": "1ec050af990cceccede2c56d357e1a08592564cef060dc1e4d3fbd511c548f37",
   "notes": "Online tools: Cloudflare speed test, IP geo, DNS benchmark, NTP clock check, LAN web dashboard, report sharing, update check."
 }
