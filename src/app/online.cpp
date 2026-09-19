@@ -24,6 +24,7 @@
 #include <QDataStream>
 #include <thread>
 #include <atomic>
+#include <mutex>
 #include <memory>
 
 #ifdef _WIN32
@@ -215,12 +216,13 @@ void OnlineServices::runDnsBenchmark() {
     emit dnsProgress(0, int(dns_servers_.size()));
 
     auto results = std::make_shared<std::vector<DnsServerResult>>();
+    auto results_mu = std::make_shared<std::mutex>();
     auto remaining = std::make_shared<std::atomic<int>>(int(dns_servers_.size()));
 
     for (size_t i = 0; i < dns_servers_.size(); ++i) {
         const QString server = dns_servers_[i].first;
         const QString name   = dns_servers_[i].second;
-        std::thread([this, server, name, results, remaining] {
+        std::thread([this, server, name, results, results_mu, remaining] {
             DnsServerResult r;
             r.server = server;
             r.name   = name;
@@ -242,7 +244,7 @@ void OnlineServices::runDnsBenchmark() {
                            sock->hasPendingDatagrams();
                 double ms = t.elapsed();
                 QByteArray resp = got ? sock->readAll() : QByteArray();
-                sock->deleteLater();
+                delete sock;
                 if (got && resp.size() >= 12 &&
                     quint8(resp[0]) == quint8(txid >> 8) &&
                     quint8(resp[1]) == quint8(txid & 0xFF)) {
@@ -256,7 +258,10 @@ void OnlineServices::runDnsBenchmark() {
             }
             if (r.ok_count) r.avg_ms /= r.ok_count;
             else r.min_ms = 0;
-            results->push_back(r);
+            {
+                std::lock_guard<std::mutex> lk(*results_mu);
+                results->push_back(r);
+            }
             QMetaObject::invokeMethod(this, [this, remaining, results] {
                 emit dnsProgress(
                     int(dns_servers_.size() - remaining->load()) + 1,

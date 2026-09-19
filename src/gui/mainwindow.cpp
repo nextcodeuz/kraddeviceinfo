@@ -572,6 +572,8 @@ void MainWindow::buildPages() {
         v->addWidget(results, 1);
 
         bench_page_ = page;
+        bench_page_->setProperty("b_stop",
+            QVariant::fromValue(static_cast<QWidget*>(stop)));
         bench_status_ = status;
         bench_progress_ = progress;
         bench_results_ = results;
@@ -826,7 +828,6 @@ void MainWindow::applyReport(const DeviceReport& r) {
             if (s.title == "Memory") m.push_back(s);
         return m;
     }());
-    fill_tree(4, pick("Disk"));                            // Storage
     fill_tree(4, [&] {
         auto v = pick("Disk");
         auto vol = pick("Volumes");
@@ -858,9 +859,9 @@ void MainWindow::applyReport(const DeviceReport& r) {
         return d;
     }());
 
-    // ---- gpu (3 handled above order) — note stack order:
-    // 0 Overview, 1 CPU, 2 Memory, 3 GPU, 4 Storage, 5 Network,
-    // 6 Devices, 7 Software, 8 Benchmark, 9 Report
+    // ---- gpu (3) ----
+    // stack order: 0 Overview, 1 CPU, 2 Memory, 3 GPU, 4 Storage, 5 Network,
+    // 6 Online, 7 Devices, 8 Software, 9 Benchmark, 10 Report
     {
         if (auto* pg = pageAt(3)) {
             std::vector<ReportSection> gpu_secs;

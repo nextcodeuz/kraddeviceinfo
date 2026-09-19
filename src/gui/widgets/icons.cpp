@@ -73,18 +73,25 @@ static QIcon paint_icon(int kind) {
         p.drawEllipse(25, 15, 14, 34);
         p.drawLine(QPointF(15, 32), QPointF(49, 32));
     } break;
-    case 6: { // monitor
+    case 6: { // online globe with signal (Icon::Globe)
+        p.drawEllipse(15, 15, 34, 34);
+        p.drawEllipse(25, 15, 14, 34);
+        p.drawLine(QPointF(15, 32), QPointF(49, 32));
+        p.drawArc(QRectF(8, 8, 48, 48), 30 * 16, 60 * 16);
+        p.drawArc(QRectF(8, 8, 48, 48), 210 * 16, 60 * 16);
+    } break;
+    case 7: { // monitor (Icon::Monitor)
         p.drawRoundedRect(12, 14, 40, 26, 4, 4);
         p.drawLine(QPointF(32, 40), QPointF(32, 46));
         p.drawLine(QPointF(22, 50), QPointF(42, 50));
     } break;
-    case 7: { // software boxes
+    case 8: { // software boxes (Icon::Software)
         p.drawRoundedRect(13, 13, 17, 17, 4, 4);
         p.drawRoundedRect(34, 13, 17, 17, 4, 4);
         p.drawRoundedRect(13, 34, 17, 17, 4, 4);
         p.fillRect(QRectF(36, 36, 13, 13), fg);
     } break;
-    case 8: { // benchmark gauge/flask
+    case 9: { // benchmark gauge/flask (Icon::Bench)
         p.drawLine(QPointF(26, 12), QPointF(26, 28));
         p.drawLine(QPointF(38, 12), QPointF(38, 28));
         p.drawLine(QPointF(26, 28), QPointF(16, 48));
@@ -92,14 +99,7 @@ static QIcon paint_icon(int kind) {
         p.drawLine(QPointF(16, 48), QPointF(48, 48));
         p.drawLine(QPointF(21, 39), QPointF(43, 39));
     } break;
-    case 10: { // online globe with signal
-        p.drawEllipse(15, 15, 34, 34);
-        p.drawEllipse(25, 15, 14, 34);
-        p.drawLine(QPointF(15, 32), QPointF(49, 32));
-        p.drawArc(QRectF(8, 8, 48, 48), 30 * 16, 60 * 16);
-        p.drawArc(QRectF(8, 8, 48, 48), 210 * 16, 60 * 16);
-    } break;
-    case 9: { // report document
+    case 10: { // report document (Icon::Report)
         p.drawRoundedRect(16, 12, 32, 40, 5, 5);
         for (int i = 0; i < 4; ++i)
             p.drawLine(QPointF(22, 21 + i * 8), QPointF(42, 21 + i * 8));

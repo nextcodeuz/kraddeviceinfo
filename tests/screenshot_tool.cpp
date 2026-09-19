@@ -36,13 +36,13 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(3500, [&] {
         auto* sb = w.findChild<QListWidget*>();
         const QString prefix = argc > 1 ? argv[argc - 1] : "shot";
-        for (int page = 0; page < 10; ++page) {
+        for (int page = 0; page < 11; ++page) {
             QTimer::singleShot(250 * page, [&w, sb, page, prefix] {
                 if (sb) sb->setCurrentRow(page);
                 QTimer::singleShot(120, [&w, page, prefix] {
                     w.grab().save(QString("/tmp/opencode/%1_%2.png")
                                       .arg(prefix).arg(page));
-                    if (page == 9) {
+                    if (page == 10) {
                         std::printf("screenshots done\n");
                         QApplication::exit(0);
                     }

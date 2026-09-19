@@ -10,6 +10,7 @@
 #include "bench.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <cstdio>
@@ -47,8 +48,10 @@ static int popcnt64(std::uint64_t v) { return __builtin_popcountll(v); }
 
 // ---- CPU worker: deterministic integer mix, returns ops completed --------
 struct CpuWork {
-    std::uint64_t ops = 0;
+    std::atomic<std::uint64_t> ops{0};
     std::uint64_t seed;
+    void set_ops(std::uint64_t v) { ops.store(v, std::memory_order_relaxed); }
+    std::uint64_t get_ops() const { return ops.load(std::memory_order_relaxed); }
 };
 
 static void cpu_worker(CpuWork& w, const std::atomic<bool>& stop,
@@ -65,10 +68,10 @@ static void cpu_worker(CpuWork& w, const std::atomic<bool>& stop,
         }
         iters += 64;
         if ((iters & 0xFFFFF) == 0) {          // ~every 1M iterations
-            if (acc == 0xdeadbeefdeadbeefULL) w.ops = 0;   // keep compiler honest
+            if (acc == 0xdeadbeefdeadbeefULL) w.set_ops(0);   // keep compiler honest
         }
     }
-    w.ops = iters + (acc == 1);                // fold acc so it is not dead
+    w.set_ops(iters + (acc == 1));             // fold acc so it is not dead
 }
 
 } // namespace
@@ -95,19 +98,19 @@ CpuResult run_cpu(int seconds, const ProgressFn& progress,
     // ---------------- single thread ----------------
     {
         std::atomic<bool> stop{false};
-        CpuWork w{0, 0x123456789ABCDEFULL};
+        CpuWork w; w.seed = 0x123456789ABCDEFULL;
         auto t0 = Clock::now();
         std::thread th([&] { cpu_worker(w, stop, std::atomic<double>{0}); });
         while (elapsed_s(t0) < single_secs) {
             if (cancel && cancel()) break;
             double e = elapsed_s(t0);
-            emit("Single thread", e, w.ops / std::max(0.25, e));
+            emit("Single thread", e, w.get_ops() / std::max(0.25, e));
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
         stop = true;
         th.join();
         double e = elapsed_s(t0);
-        r.single_score = w.ops / e / 1e6;          // M-iterations/s
+        r.single_score = w.get_ops() / e / 1e6;          // M-iterations/s
         emit("Single thread done", single_secs, r.single_score);
     }
 
@@ -125,7 +128,7 @@ CpuResult run_cpu(int seconds, const ProgressFn& progress,
         while (elapsed_s(t0) < multi_secs) {
             if (cancel && cancel()) break;
             std::uint64_t sum = 0;
-            for (auto& w : works) sum += w.ops;
+            for (auto& w : works) sum += w.get_ops();
             double e = elapsed_s(t0);
             emit("All threads", single_secs + e,
                  double(sum) / std::max(0.25, e) / 1e6);
@@ -134,7 +137,7 @@ CpuResult run_cpu(int seconds, const ProgressFn& progress,
         stop = true;
         for (auto& th : ths) th->join();
         std::uint64_t sum = 0;
-        for (auto& w : works) sum += w.ops;
+        for (auto& w : works) sum += w.get_ops();
         r.multi_score = double(sum) / elapsed_s(t0) / 1e6;
         emit("Done", total, r.multi_score);
     }
