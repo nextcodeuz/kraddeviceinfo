@@ -57,16 +57,11 @@ static QWidget* makeScrollChild(QWidget* w) {
     return sa;
 }
 
-static QLabel* kv(const QString& key) {
-    auto* l = new QLabel(key);
-    l->setStyleSheet("color: palette(placeholder-text);");
-    return l;
-}
-
 // ---------------------------------------------------------------- build
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(QString("%1 v%2").arg(krad::APP_NAME, krad::APP_VERSION));
     resize(1180, 760);
+    setMinimumSize(920, 580);
     setWindowIcon(makeAppIcon());
 
     online_ = new krad::OnlineServices(this);
@@ -94,8 +89,8 @@ void MainWindow::buildUi() {
 
     sidebar_ = new QListWidget();
     sidebar_->setObjectName("sidebar");
-    sidebar_->setIconSize(QSize(20, 20));
-    sidebar_->setFixedWidth(190);
+    sidebar_->setIconSize(QSize(18, 18));
+    sidebar_->setFixedWidth(204);
 
     stack_ = new QStackedWidget();
 
@@ -186,6 +181,7 @@ void MainWindow::buildPages() {
         auto* search = new QLineEdit();
         search->setPlaceholderText(tr("Search..."));
         search->setFixedWidth(240);
+        search->setClearButtonEnabled(true);
         head->addWidget(search);
         v->addLayout(head);
 
@@ -270,6 +266,7 @@ void MainWindow::buildPages() {
         auto* search = new QLineEdit();
         search->setPlaceholderText(tr("Search..."));
         search->setFixedWidth(240);
+        search->setClearButtonEnabled(true);
         head->addWidget(search);
         v->addLayout(head);
 
@@ -414,6 +411,7 @@ void MainWindow::buildPages() {
             auto* res = new QLabel(tr("Upload the full report and get a shareable link."));
             res->setWordWrap(true);
             res->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            res->setOpenExternalLinks(true);
             auto* btn = new QPushButton(tr("Upload report"));
             v->addWidget(res, 1);
             v->addWidget(btn, 0, Qt::AlignRight);
@@ -433,6 +431,7 @@ void MainWindow::buildPages() {
             auto* v = new QVBoxLayout(g);
             auto* res = new QLabel(tr("Starts a tiny read-only HTTP server on your LAN."));
             res->setWordWrap(true);
+            res->setOpenExternalLinks(true);
             auto* row = new QHBoxLayout();
             auto* port = new QSpinBox();
             port->setRange(1024, 65535); port->setValue(8787);
@@ -478,6 +477,7 @@ void MainWindow::buildPages() {
         auto* search = new QLineEdit();
         search->setPlaceholderText(tr("Search..."));
         search->setFixedWidth(240);
+        search->setClearButtonEnabled(true);
         head->addWidget(search);
         v->addLayout(head);
 
@@ -500,6 +500,7 @@ void MainWindow::buildPages() {
         auto* search = new QLineEdit();
         search->setPlaceholderText(tr("Filter..."));
         search->setFixedWidth(260);
+        search->setClearButtonEnabled(true);
         head->addWidget(search);
         v->addLayout(head);
 
@@ -673,6 +674,19 @@ void MainWindow::buildMenu() {
     QMenu* view = menuBar()->addMenu(tr("&View"));
     auto* theme_act = view->addAction(tr("Toggle &theme"));
     connect(theme_act, &QAction::triggered, this, &MainWindow::onThemeToggle);
+
+    auto* pages_menu = view->addMenu(tr("&Go to"));
+    for (int i = 0; i < sidebar_->count(); ++i) {
+        QAction* a = pages_menu->addAction(sidebar_->item(i)->text());
+        a->setData(i);
+        if (i + 1 <= 9)
+            a->setShortcut(QKeySequence(QStringLiteral("Ctrl+%1").arg(i + 1)));
+        else if (i == 9)
+            a->setShortcut(QKeySequence(QStringLiteral("Ctrl+0")));
+    }
+    connect(pages_menu, &QMenu::triggered, this, [this](QAction* a) {
+        sidebar_->setCurrentRow(a->data().toInt());
+    });
 
     // ---- toolbar -------------------------------------------------------------
     auto* tb = addToolBar(tr("Main"));
@@ -1092,9 +1106,6 @@ void MainWindow::connectOnlineSignals() {
     auto pageAt = [&](int i) { return stack_->widget(i); };
     QWidget* pg = pageAt(6);
     if (!pg) return;
-    auto w = [&](const char* prop) -> QWidget* {
-        return pg->property(prop).value<QWidget*>();
-    };
 
     connect(online_, &krad::OnlineServices::ipInfoReady, this,
             [this, pg](const krad::IpGeoInfo& i) {

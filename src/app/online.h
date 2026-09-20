@@ -14,6 +14,7 @@
 #include <QNetworkAccessManager>
 #include <QString>
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace krad {
@@ -44,6 +45,7 @@ class OnlineServices : public QObject {
     Q_OBJECT
 public:
     explicit OnlineServices(QObject* parent = nullptr);
+    ~OnlineServices() override;
 
     void    fetchIpInfo();
     void    runSpeedTest();
@@ -113,6 +115,11 @@ private:
     // dashboard
     QTcpServer* dash_server_ = nullptr;
     quint16 dash_port_ = 8787;
+    QString dash_token_;          // per-session secret; /api/* requires it
+
+    // async lifetime guard: shared_ptr<bool> so detached threads can check
+    // it safely even after this object is destroyed.
+    std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
 } // namespace krad

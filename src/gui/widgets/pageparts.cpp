@@ -42,7 +42,8 @@ void SectionView::setSections(const std::vector<ReportSection>& sections) {
             auto* h = new QHBoxLayout();
             h->setSpacing(10);
             auto* k = new QLabel(QString::fromStdString(row.key));
-            k->setStyleSheet("color: palette(placeholder-text); min-width: 150px;");
+            k->setStyleSheet("color: palette(placeholder-text); min-width: 175px;");
+            k->setWordWrap(true);
             k->setAlignment(Qt::AlignTop);
             auto* v = new QLabel(QString::fromStdString(row.value));
             v->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -63,6 +64,9 @@ KVTree::KVTree(QWidget* parent) : QTreeWidget(parent) {
     setRootIsDecorated(false);
     setAlternatingRowColors(true);
     setUniformRowHeights(true);
+    setSelectionBehavior(QAbstractItemView::SelectRows);
+    setSelectionMode(QAbstractItemView::SingleSelection);
+    setTextElideMode(Qt::ElideRight);
     header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     header()->setStretchLastSection(true);
 }

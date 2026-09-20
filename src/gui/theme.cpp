@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QPalette>
 #include <QStyleFactory>
+#include <QStringList>
 
 namespace krad {
 namespace ui {
@@ -30,7 +31,7 @@ void Theme::apply(ThemeKind kind) {
         accent_ = "#4fc3f7";
         p.setColor(QPalette::Window,          QColor("#141821"));
         p.setColor(QPalette::WindowText,      QColor("#e2e8f0"));
-        p.setColor(QPalette::Base,            QColor("#1b2230"));
+        p.setColor(QPalette::Base,            QColor("#11161f"));
         p.setColor(QPalette::AlternateBase,   QColor("#1f2736"));
         p.setColor(QPalette::ToolTipBase,     QColor("#232b3d"));
         p.setColor(QPalette::ToolTipText,     QColor("#e2e8f0"));
@@ -45,7 +46,7 @@ void Theme::apply(ThemeKind kind) {
         p.setColor(QPalette::Disabled, QPalette::Text, QColor("#54607a"));
     } else {
         accent_ = "#0369a1";
-        p.setColor(QPalette::Window,          QColor("#f1f4f9"));
+        p.setColor(QPalette::Window,          QColor("#eef2f8"));
         p.setColor(QPalette::WindowText,      QColor("#1a2333"));
         p.setColor(QPalette::Base,            QColor("#ffffff"));
         p.setColor(QPalette::AlternateBase,   QColor("#f3f6fb"));
@@ -58,78 +59,142 @@ void Theme::apply(ThemeKind kind) {
         p.setColor(QPalette::Highlight,       QColor("#2563eb"));
         p.setColor(QPalette::HighlightedText, Qt::white);
         p.setColor(QPalette::PlaceholderText, QColor("#9ca3af"));
+        p.setColor(QPalette::Disabled, QPalette::Text, QColor("#9ca3af"));
     }
     app->setPalette(p);
 
-    bool dark = kind == ThemeKind::Dark;
-    const char* panel  = dark ? "#1b2230" : "#ffffff";
-    const char* border = dark ? "#28324a" : "#dde4ee";
-    const char* hover  = dark ? "#232d42" : "#eef2fa";
-    const char* dim    = dark ? "#8ea0bd" : "#64748b";
-    const char* sidebg = dark ? "#10151f" : "#e7ecf5";
-    const char* textc  = dark ? "#dbe4f0" : "#1f2937";
+    // QSS palettes. Tokens ([BG], [TXT], ...) are substituted below because
+    // QString::arg only understands a single %1..%9 placeholder per call.
+    const bool dark = kind == ThemeKind::Dark;
+    QString bg     = dark ? "#10151f" : "#e7ecf5";   // window / sidebar
+    QString panel  = dark ? "#1b2230" : "#ffffff";   // cards, trees
+    QString edge   = dark ? "#28324a" : "#d4dde8";   // borders
+    QString hover  = dark ? "#232d42" : "#eef2fa";   // hover fill
+    QString blue   = dark ? "#1f6feb" : "#2563eb";   // selection / focus
+    QString in     = dark ? "#11161f" : "#ffffff";   // input background
+    QString dim    = dark ? "#8ea0bd" : "#64748b";   // secondary text
+    QString txt    = dark ? "#dbe4f0" : "#1f2937";   // primary text
+    QString acc    = dark ? "#4fc3f7" : "#0369a1";   // accent / links
 
-    QString qss = QStringLiteral(
-        "* { outline: none; }"
-        "QMainWindow { background: %1; }"
-        "QWidget { color: %7; font-size: 13px; }"
+    QString qss = QString::fromLatin1(
+        "* { outline: none; "
+              "font-family: 'Segoe UI', 'Segoe UI Variable Text', system-ui, "
+                        "-apple-system, 'Noto Sans', sans-serif; }"
+        "QMainWindow { background: [BG]; }"
+        "QWidget { color: [TXT]; font-size: 13px; }"
+        "QToolTip { background: [PANEL]; color: [TXT]; border: 1px solid [EDGE];"
+                   "border-radius: 6px; padding: 6px 9px; }"
+        "QScrollArea, QScrollArea > QWidget > QWidget { border: none;"
+                                                       "background: transparent; }"
         "QListWidget#sidebar {"
-        "  background: %6; border: none; padding: 10px 6px; font-size: 13px;"
+        "  background: [BG]; border: none; border-right: 1px solid [EDGE];"
+        "  padding: 12px 6px; font-size: 13px;"
         "}"
         "QListWidget#sidebar::item {"
-        "  padding: 9px 14px; margin: 2px 6px; border-radius: 8px;"
+        "  padding: 10px 14px; margin: 3px 6px; border-radius: 9px;"
         "}"
         "QListWidget#sidebar::item:selected {"
-        "  background: %5; color: white;"
+        "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+        "    stop:0 [BLUE], stop:1 #1d4ed8);"
+        "  color: #ffffff; font-weight: 600;"
         "}"
-        "QListWidget#sidebar::item:hover:!selected { background: %4; }"
-        "QScrollArea { border: none; background: transparent; }"
+        "QListWidget#sidebar::item:hover:!selected {"
+        "  background: rgba(127,149,190,0.16);"
+        "}"
         "QTreeWidget, QTreeView {"
-        "  background: %2; alternate-background-color: rgba(127,140,170,12);"
-        "  border: 1px solid %3; border-radius: 8px; padding: 4px;"
+        "  background: [PANEL]; alternate-background-color: rgba(127,140,170,14);"
+        "  border: 1px solid [EDGE]; border-radius: 10px; padding: 4px;"
+        "  selection-background-color: rgba(37,99,235,0.28); selection-color: [TXT];"
         "}"
-        "QTreeWidget::item { height: 26px; }"
+        "QTreeWidget::item { height: 28px; border-radius: 6px; padding: 0 4px; }"
+        "QTreeWidget::item:hover { background: rgba(127,149,190,0.12); }"
+        "QTreeWidget::item:selected { background: rgba(37,99,235,0.32); color: [TXT]; }"
+        "QTreeWidget::branch { background: transparent; }"
         "QHeaderView::section {"
-        "  background: %2; border: none; border-bottom: 1px solid %3;"
-        "  padding: 6px 8px; font-weight: 600;"
+        "  background: transparent; border: none; border-bottom: 1px solid [EDGE];"
+        "  padding: 7px 10px; font-weight: 600; color: [DIM];"
         "}"
+        "QHeaderView::section:hover { color: [TXT]; }"
         "QPushButton {"
-        "  background: %2; border: 1px solid %3; border-radius: 8px;"
-        "  padding: 7px 16px; font-weight: 500;"
+        "  background: [PANEL]; border: 1px solid [EDGE]; border-radius: 9px;"
+        "  padding: 8px 18px; font-weight: 600;"
         "}"
-        "QPushButton:hover { background: %4; }"
-        "QPushButton:pressed { background: %5; color: white; }"
-        "QPushButton:disabled { color: %8; }"
+        "QPushButton:hover { background: [HOV]; border-color: [BLUE]; }"
+        "QPushButton:pressed { background: #1d4ed8; color: #ffffff;"
+        "  border-color: #1d4ed8; }"
+        "QPushButton:disabled { color: [DIM]; border-color: [EDGE]; background: [PANEL]; }"
+        "QPushButton:focus { border: 1px solid [BLUE]; }"
         "QLineEdit, QComboBox, QSpinBox {"
-        "  background: %2; border: 1px solid %3; border-radius: 8px;"
-        "  padding: 6px 10px; selection-background-color: %5;"
+        "  background: [IN]; border: 1px solid [EDGE]; border-radius: 9px;"
+        "  padding: 7px 12px; selection-background-color: [BLUE];"
+        "  selection-color: #ffffff;"
         "}"
+        "QLineEdit:hover, QComboBox:hover, QSpinBox:hover,"
+        "QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: [BLUE]; }"
+        "QComboBox::drop-down { border: none; width: 24px; }"
         "QProgressBar {"
-        "  background: %2; border: 1px solid %3; border-radius: 7px;"
-        "  text-align: center; height: 15px; font-size: 11px;"
+        "  background: [PANEL]; border: 1px solid [EDGE]; border-radius: 8px;"
+        "  text-align: center; font-size: 11px; height: 18px;"
         "}"
-        "QProgressBar::chunk { border-radius: 6px; background: %5; }"
-        "QStatusBar { background: %6; border-top: 1px solid %3; }"
-        "QMenuBar { background: %6; }"
-        "QMenu { background: %2; border: 1px solid %3; border-radius: 8px; padding: 6px; }"
-        "QMenu::item { padding: 7px 26px; border-radius: 6px; }"
-        "QMenu::item:selected { background: %5; color: white; }"
-        "QTabWidget::pane { border: 1px solid %3; border-radius: 8px; }"
+        "QProgressBar::chunk {"
+        "  border-radius: 7px;"
+        "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+        "    stop:0 #2563eb, stop:1 [ACC]);"
+        "}"
+        "QStatusBar { background: [BG]; border-top: 1px solid [EDGE]; color: [DIM]; }"
+        "QMenuBar { background: [BG]; border-bottom: 1px solid [EDGE]; }"
+        "QMenuBar::item { padding: 7px 12px; border-radius: 7px;"
+        "  background: transparent; }"
+        "QMenuBar::item:selected { background: [HOV]; }"
+        "QMenu { background: [PANEL]; border: 1px solid [EDGE]; border-radius: 10px;"
+        "  padding: 6px; }"
+        "QMenu::item { padding: 7px 26px; border-radius: 7px; }"
+        "QMenu::item:selected { background: #2563eb; color: #ffffff; }"
+        "QMenu::separator { height: 1px; background: [EDGE]; margin: 5px 8px; }"
+        "QTabWidget::pane { border: 1px solid [EDGE]; border-radius: 10px; }"
         "QTabBar::tab { padding: 8px 18px; }"
-        "QLabel#welcomeTitle { font-size: 26px; font-weight: 700; }"
         "QGroupBox {"
-        "  background: %2; border: 1px solid %3; border-radius: 10px;"
-        "  margin-top: 12px; padding: 14px 10px 10px 10px; font-weight: 600;"
+        "  background: [PANEL]; border: 1px solid [EDGE]; border-radius: 12px;"
+        "  margin-top: 14px; padding: 16px 12px 12px 12px; font-weight: 600;"
         "}"
-        "QGroupBox::title { subcontrol-origin: margin; left: 14px;"
-        "  padding: 0 6px; color: %5; }"
-        "QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }"
-        "QScrollBar::handle:vertical { background: %3; border-radius: 5px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: %8; }"
-        "QScrollBar::add-line, QScrollBar::sub-line { height: 0; }"
-    ).arg(sidebg).arg(panel).arg(border).arg(hover)
-     .arg("#2563eb").arg(dark ? "#10151f" : "#e7ecf5")
-     .arg(textc).arg(dim);
+        "QGroupBox::title { subcontrol-origin: margin; left: 14px; top: 0px;"
+        "  padding: 0 8px; color: [ACC]; font-weight: 700; }"
+        "QToolBar { background: transparent; border: none; spacing: 4px;"
+        "  padding: 4px 6px; }"
+        "QToolBar::separator { background: [EDGE]; width: 1px; margin: 6px 8px; }"
+        "QToolButton { padding: 7px 12px; border-radius: 9px;"
+        "  font-weight: 600; border: none; }"
+        "QToolButton:hover { background: [HOV]; }"
+        "QToolButton:pressed, QToolButton:checked { background: #2563eb;"
+        "  color: #ffffff; }"
+        "QScrollBar:vertical { background: transparent; width: 9px; margin: 2px; }"
+        "QScrollBar::handle:vertical { background: [EDGE]; border-radius: 4px;"
+        "  min-height: 28px; }"
+        "QScrollBar::handle:vertical:hover { background: [DIM]; }"
+        "QScrollBar:horizontal { background: transparent; height: 9px; margin: 2px; }"
+        "QScrollBar::handle:horizontal { background: [EDGE]; border-radius: 4px;"
+        "  min-width: 28px; }"
+        "QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }"
+        "QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }"
+        "QLabel#page-title { font-size: 24px; font-weight: 700; }"
+        "QLabel a { color: [ACC]; }"
+        "QSplitter::handle { background: transparent; width: 8px; height: 8px; }"
+        "QMessageBox { background: [BG]; }"
+        "QStatusBar::item { border: none; }");
+
+    const QStringList tokens = {
+        "[BG]",    bg,
+        "[PANEL]", panel,
+        "[EDGE]",  edge,
+        "[HOV]",   hover,
+        "[BLUE]",  blue,
+        "[IN]",    in,
+        "[DIM]",   dim,
+        "[TXT]",   txt,
+        "[ACC]",   acc,
+    };
+    for (int i = 0; i < tokens.size(); i += 2)
+        qss.replace(tokens[i], tokens[i + 1]);
 
     app->setStyleSheet(qss);
 }

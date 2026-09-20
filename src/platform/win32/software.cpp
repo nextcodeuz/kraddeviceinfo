@@ -152,12 +152,10 @@ std::vector<ServiceEntry> services() {
             // start type via QueryServiceConfig
             SC_HANDLE sh = OpenServiceW(scm, list[i].lpServiceName, SERVICE_QUERY_CONFIG);
             if (sh) {
-                QUERY_SERVICE_CONFIGW qsc_buf;
-                QUERY_SERVICE_CONFIGW* qsc = &qsc_buf;
                 BYTE raw[4096]; DWORD n2 = 0;
                 if (QueryServiceConfigW(sh,
                         reinterpret_cast<LPQUERY_SERVICE_CONFIGW>(raw), sizeof raw, &n2)) {
-                    qsc = reinterpret_cast<LPQUERY_SERVICE_CONFIGW>(raw);
+                    auto* qsc = reinterpret_cast<LPQUERY_SERVICE_CONFIGW>(raw);
                     switch (qsc->dwStartType) {
                     case SERVICE_AUTO_START:  s.start_mode = "Automatic"; break;
                     case SERVICE_BOOT_START:  s.start_mode = "Boot"; break;

@@ -133,9 +133,6 @@ std::string to_json(const DeviceReport& r) {
     auto arr_open = [&](const char* name) {
         o << "  \"" << name << "\": [\n";
     };
-    auto item_end = [&](size_t i, size_t n) {
-        o << (i + 1 < n ? "    },\n" : "    }\n");
-    };
 
     arr_open("gpus");
     for (size_t i = 0; i < r.gpus.size(); ++i) {
@@ -149,7 +146,7 @@ std::string to_json(const DeviceReport& r) {
         o << "    }";
         o << (i + 1 < r.gpus.size() ? ",\n" : "\n");
     }
-    o << (r.gpus.empty() ? "  ],\n" : "  ],\n");
+    o << "  ],\n";
 
     arr_open("disks");
     for (size_t i = 0; i < r.disks.size(); ++i) {

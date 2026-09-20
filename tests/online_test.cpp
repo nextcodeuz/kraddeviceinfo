@@ -28,6 +28,8 @@ static void nextStage();
 // plain connect; duplicate emissions are harmless because advance()
 // is guarded by stageDone
 
+static QString g_dash_token;                    // per-session dashboard token
+
 static void advance() {
     if (stageDone) return;
     stageDone = true;
@@ -35,8 +37,10 @@ static void advance() {
     nextStage();
 }
 
-static void stageTimeout(const char* name, int fail) {
-    if (stageDone) return;
+static void stageTimeout(const char* name, int fail, int expectedStage) {
+    // Late-firing guards from earlier stages must NOT count: the run can
+    // legitimately outlive any single stage's timeout window.
+    if (stageDone || stage != expectedStage) return;
     std::printf("%s stage timeout\n", name);
     failures += fail;
     advance();
@@ -79,7 +83,7 @@ static void nextStage() {
                 advance();
             });
         online.fetchIpInfo();
-        QTimer::singleShot(20000, &app, [] { stageTimeout("ip", 1); });
+        QTimer::singleShot(20000, &app, [] { stageTimeout("ip", 1, 1); });
     } else if (stage == 2) {
         // ---------------- speed test ----------------
         std::printf("[stage 2] speed test...\n");
@@ -92,7 +96,7 @@ static void nextStage() {
                 advance();
             });
         online.runSpeedTest();
-        QTimer::singleShot(90000, &app, [] { stageTimeout("speed", 1); });
+        QTimer::singleShot(90000, &app, [] { stageTimeout("speed", 1, 2); });
     } else if (stage == 3) {
         // ---------------- dns benchmark ----------------
         std::printf("[stage 3] dns benchmark...\n");
@@ -108,7 +112,7 @@ static void nextStage() {
                 advance();
             });
         online.runDnsBenchmark();
-        QTimer::singleShot(60000, &app, [] { stageTimeout("dns", 0); });
+        QTimer::singleShot(60000, &app, [] { stageTimeout("dns", 0, 3); });
     } else if (stage == 4) {
         // ---------------- ntp ----------------
         std::printf("[stage 4] ntp...\n");
@@ -119,7 +123,7 @@ static void nextStage() {
                 advance();
             });
         online.fetchNtpOffset();
-        QTimer::singleShot(20000, &app, [] { stageTimeout("ntp", 0); });
+        QTimer::singleShot(20000, &app, [] { stageTimeout("ntp", 0, 4); });
     } else if (stage == 5) {
         // ---------------- dashboard server (external curl) ---------------
         std::printf("[stage 5] web dashboard...\n");
@@ -139,12 +143,21 @@ static void nextStage() {
         }
         std::printf("dashboard url: %s\n",
                     online.dashboardUrl().toUtf8().constData());
+        {
+            const QString u = online.dashboardUrl();
+            const int t = u.indexOf("?t=");
+            g_dash_token = t >= 0 ? u.mid(t + 3) : QString();
+        }
 
         // verify with detached curl writing to files (no QProcess object
         // lifecycle issues; server runs in this process, client is external)
         QTimer::singleShot(300, [] {
-            std::system("curl -s -m 5 http://127.0.0.1:18991/api/stats "
-                        "-o /tmp/opencode/dash_api.txt &");
+            const QString cmd =
+                QString("curl -s -m 5 \"http://127.0.0.1:18991/api/stats?t=%1\" "
+                        "-o /tmp/opencode/dash_api.txt &").arg(g_dash_token);
+            std::system(cmd.toUtf8().constData());
+            std::system("curl -s -m 5 \"http://127.0.0.1:18991/api/stats\" "
+                        "-o /tmp/opencode/dash_unauth.txt &");
         });
         QTimer::singleShot(1200, [] {
             std::system("curl -s -m 5 http://127.0.0.1:18991/ "
@@ -157,18 +170,29 @@ static void nextStage() {
             html.open(QIODevice::ReadOnly);
             QByteArray body = api.readAll();
             QByteArray doc = html.readAll();
+            QFile unauth("/tmp/opencode/dash_unauth.txt");
+            unauth.open(QIODevice::ReadOnly);
+            QByteArray deny = unauth.readAll();
             bool apiOk = body.contains("\"cpu\":42.5");
-            std::printf("api/stats: %s -> %s\n", apiOk ? "OK" : "FAIL",
+            std::printf("api/stats (with token): %s -> %s\n",
+                        apiOk ? "OK" : "FAIL",
                         body.left(60).constData());
+            bool denied = deny.isEmpty();       // 401 -> empty body
+            std::printf("api/stats (no token):  %s (%d bytes)\n",
+                        denied ? "denied" : "EXPOSED", int(deny.size()));
             bool htmlOk = doc.contains("Krad") && doc.contains("poll");
             std::printf("dashboard html: %s (%d bytes)\n",
                         htmlOk ? "OK" : "FAIL", int(doc.size()));
             if (!apiOk) ++failures;
             if (!htmlOk) ++failures;
+            if (!denied) {
+                std::printf("FAIL: /api/stats without token served data\n");
+                ++failures;
+            }
             online.stopDashboard();
             advance();
         });
-        QTimer::singleShot(15000, &app, [] { stageTimeout("dashboard", 1); });
+        QTimer::singleShot(15000, &app, [] { stageTimeout("dashboard", 1, 5); });
     } else {
         std::printf("\n=== %s (failures: %d) ===\n",
                     failures ? "SOME TESTS FAILED" : "ALL TESTS PASS",

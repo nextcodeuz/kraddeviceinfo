@@ -29,11 +29,87 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <unistd.h>
 #endif
+#include <cstring>
 
 namespace krad {
+
+// ------------------------------------------------------------------- raw udp
+// Blocking UDP round trip over raw sockets. Unlike QUdpSocket this may be
+// used from any plain std::thread (no QEventDispatcher / timers involved).
+// Resolves host:service, sends payload, waits up to timeout_ms, copies the
+// reply into resp. Returns the reply length or -1; sets *rtt_ms on success.
+static int udp_roundtrip(const QByteArray& host, const QString& service,
+                         const char* payload, int plen,
+                         char* resp, int rmax, int timeout_ms, double* rtt_ms) {
+    struct addrinfo hints;
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    struct addrinfo* ai = nullptr;
+    const QByteArray serv = service.toLatin1();
+    if (getaddrinfo(host.constData(), serv.constData(), &hints, &ai) != 0 ||
+        !ai) {
+        if (ai) freeaddrinfo(ai);
+        return -1;
+    }
+// Iterate the resolved addresses (e.g. AAAA + A) and pick the first
+    // endpoint we can actually send to; sandboxed hosts may reject IPv6.
+    int fd = -1;
+    for (struct addrinfo* p = ai; p; p = p->ai_next) {
+#ifdef _WIN32
+        fd = int(socket(p->ai_family, SOCK_DGRAM, 0));
+#else
+        fd = int(socket(p->ai_family, SOCK_DGRAM, 0));
+#endif
+        if (fd < 0) continue;
+        if (sendto(fd, payload, plen, 0, p->ai_addr, p->ai_addrlen) < 0) {
+#ifdef _WIN32
+            closesocket(SOCKET(fd));
+#else
+            ::close(fd);
+#endif
+            fd = -1;
+            continue;
+        }
+        break;
+    }
+    freeaddrinfo(ai);
+    if (fd < 0) return -1;
+    QElapsedTimer t;
+    t.start();
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+    struct timeval tv;
+    tv.tv_sec  = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+#ifdef _WIN32
+    int nfds = 0;                    // ignored on Windows
+#else
+    int nfds = fd + 1;
+#endif
+    int sel = select(nfds, &rfds, nullptr, nullptr, &tv);
+    int n = -1;
+    if (sel > 0)
+        n = int(recvfrom(fd, resp, rmax, 0, nullptr, nullptr));
+    if (n >= 0) *rtt_ms = t.elapsed();
+#ifdef _WIN32
+    closesocket(SOCKET(fd));
+#else
+    ::close(fd);
+#endif
+    return n;
+}
 
 static QNetworkRequest makeRequest(const QUrl& url) {
     QNetworkRequest req(url);
@@ -45,6 +121,10 @@ static QNetworkRequest makeRequest(const QUrl& url) {
 }
 
 OnlineServices::OnlineServices(QObject* parent) : QObject(parent) {}
+
+OnlineServices::~OnlineServices() {
+    if (alive_) *alive_ = false;    // stop detached threads from touching `this`
+}
 
 // QNAM created lazily: constructing it early can interfere with
 // QTcpServer socket notifiers in some environments.
@@ -222,31 +302,26 @@ void OnlineServices::runDnsBenchmark() {
     for (size_t i = 0; i < dns_servers_.size(); ++i) {
         const QString server = dns_servers_[i].first;
         const QString name   = dns_servers_[i].second;
-        std::thread([this, server, name, results, results_mu, remaining] {
+        std::shared_ptr<bool> alive = alive_;
+        std::thread([this, alive, server, name, results, results_mu, remaining] {
             DnsServerResult r;
             r.server = server;
             r.name   = name;
             r.total  = 5;
             int consecutive_timeouts = 0;
             for (int q = 0; q < 5; ++q) {
-                auto* sock = new QUdpSocket();
                 quint16 txid = quint16(
                     QRandomGenerator::global()->generate() & 0xFFFF);
                 QString qname = QString("%1.example.com")
                     .arg(QRandomGenerator::global()->generate() & 0xFFFFFF,
                          6, 16, QChar('0'));
                 QByteArray query = build_dns_query(txid, qname.toLatin1());
-                QHostAddress target(server);
-                QElapsedTimer t;
-                t.start();
-                bool got = sock->writeDatagram(query, target, 53) > 0 &&
-                           sock->waitForReadyRead(1200) &&
-                           sock->hasPendingDatagrams();
-                double ms = t.elapsed();
-                QByteArray resp = got ? sock->readAll() : QByteArray();
-                delete sock;
-                if (got && resp.size() >= 12 &&
-                    quint8(resp[0]) == quint8(txid >> 8) &&
+                char resp[512];
+                double ms = 0;
+                int n = udp_roundtrip(server.toLatin1(), QStringLiteral("53"),
+                                      query.constData(), int(query.size()),
+                                      resp, int(sizeof(resp)), 1200, &ms);
+                if (n >= 12 && quint8(resp[0]) == quint8(txid >> 8) &&
                     quint8(resp[1]) == quint8(txid & 0xFF)) {
                     ++r.ok_count;
                     r.avg_ms += ms;
@@ -262,7 +337,9 @@ void OnlineServices::runDnsBenchmark() {
                 std::lock_guard<std::mutex> lk(*results_mu);
                 results->push_back(r);
             }
-            QMetaObject::invokeMethod(this, [this, remaining, results] {
+            if (!*alive) return;
+            QMetaObject::invokeMethod(this, [this, alive, remaining, results] {
+                if (!*alive) return;
                 emit dnsProgress(
                     int(dns_servers_.size() - remaining->load()) + 1,
                     int(dns_servers_.size()));
@@ -284,48 +361,48 @@ void OnlineServices::dnsSendQuery() {}   // legacy hook (unused)
 
 // ---------------------------------------------------------------- ntp
 void OnlineServices::fetchNtpOffset() {
-    auto* sock = new QUdpSocket(this);
-    QHostInfo::lookupHost("pool.ntp.org", this,
-        [this, sock](const QHostInfo& info) {
-            if (info.addresses().isEmpty()) {
-                sock->deleteLater();
-                emit ntpDone(false, 0, "DNS lookup failed");
-                return;
-            }
-            QHostAddress addr = info.addresses().first();
-            QByteArray pkt(48, char(0));
-            pkt[0] = char(0x1B);                     // LI=0, VN=3, Mode=3
-            QElapsedTimer t;
-            t.start();
-            qint64 sent = sock->writeDatagram(pkt, addr, 123);
-            if (sent < 0 || !sock->waitForReadyRead(2500) ||
-                !sock->hasPendingDatagrams()) {
-                sock->deleteLater();
-                emit ntpDone(false, 0, "no reply (timeout or UDP blocked)");
-                return;
-            }
-            double rtt_ms = t.elapsed();
-            QByteArray resp = sock->readAll();
-            sock->deleteLater();
-            if (resp.size() < 48) { emit ntpDone(false, 0, "short reply"); return; }
+    // Run the blocking DNS lookup + UDP round trip on a background thread so
+    // the GUI never freezes (previously waited synchronously up to 2.5 s).
+    // Only raw sockets are used here: Qt networking must not be created on a
+    // plain std::thread (no event dispatcher -> waitForReadyRead cannot work).
+    std::shared_ptr<bool> alive = alive_;
+    std::thread([this, alive] {
+        auto emit_done = [this, alive](bool ok, double ms, const QString& server) {
+            // Queued connection -> result delivered on the owner thread; the
+            // invocation is dropped automatically if `this` gets destroyed.
+            QMetaObject::invokeMethod(this, [this, alive, ok, ms, server] {
+                if (*alive) emit ntpDone(ok, ms, server);
+            }, Qt::QueuedConnection);
+        };
+        QByteArray pkt(48, char(0));
+        pkt[0] = char(0x1B);                     // LI=0, VN=3, Mode=3
+        char resp[512];
+        double rtt_ms = 0;
+        int n = udp_roundtrip(QByteArray("pool.ntp.org"), QStringLiteral("123"),
+                              pkt.constData(), int(pkt.size()),
+                              resp, int(sizeof(resp)), 2500, &rtt_ms);
+        if (n < 48) {
+            emit_done(false, 0, n < 0 ? "no reply (timeout or UDP blocked)"
+                                      : "short reply");
+            return;
+        }
 
-            auto read_ts = [&](int off) -> double {  // NTP -> unix seconds
-                quint32 s = (quint8(resp[off]) << 24) |
-                            (quint8(resp[off+1]) << 16) |
-                            (quint8(resp[off+2]) << 8) | quint8(resp[off+3]);
-                quint32 f = (quint8(resp[off+4]) << 24) |
-                            (quint8(resp[off+5]) << 16) |
-                            (quint8(resp[off+6]) << 8) | quint8(resp[off+7]);
-                return (s - 2208988800u) + f / 4294967296.0;
-            };
-            double t2 = read_ts(32);                 // server receive
-            double t3 = read_ts(40);                 // server transmit
-            double t0 = (QDateTime::currentMSecsSinceEpoch() - rtt_ms) / 1000.0;
-            double t1 = t0 + rtt_ms / 2000.0;        // approx client send/recv
-            double offset_s = ((t1 - t0) + (t2 - t3)) / 2.0;
-            emit ntpDone(true, offset_s * 1000.0,
-                         addr.toString() + " (pool.ntp.org)");
-        });
+        auto read_ts = [&](int off) -> double {  // NTP -> unix seconds
+            quint32 s = (quint8(resp[off]) << 24) |
+                        (quint8(resp[off+1]) << 16) |
+                        (quint8(resp[off+2]) << 8) | quint8(resp[off+3]);
+            quint32 f = (quint8(resp[off+4]) << 24) |
+                        (quint8(resp[off+5]) << 16) |
+                        (quint8(resp[off+6]) << 8) | quint8(resp[off+7]);
+            return (s - 2208988800u) + f / 4294967296.0;
+        };
+        double t2 = read_ts(32);                 // server receive
+        double t3 = read_ts(40);                 // server transmit
+        double t0 = (QDateTime::currentMSecsSinceEpoch() - rtt_ms) / 1000.0;
+        double t1 = t0 + rtt_ms / 2000.0;        // approx client send/recv
+        double offset_s = ((t1 - t0) + (t2 - t3)) / 2.0;
+        emit_done(true, offset_s * 1000.0, QStringLiteral("pool.ntp.org"));
+    }).detach();
 }
 
 // ---------------------------------------------------------------- updates
@@ -410,6 +487,9 @@ void OnlineServices::setReportText(const QString& t) { report_text_ = t; }
 
 bool OnlineServices::startDashboard(quint16 port) {
     stopDashboard();
+    dash_token_ = QString::number(
+        (QRandomGenerator::global()->generate64() ^
+         QRandomGenerator::global()->generate()), 16);
     if (!dash_server_) {
         dash_server_ = new QTcpServer(this);
         auto handle = [this](QTcpSocket* c) {
@@ -421,18 +501,34 @@ bool OnlineServices::startDashboard(quint16 port) {
                 path = QString::fromLatin1(req.mid(sp1 + 1, sp2 - sp1 - 1));
 
             QByteArray body;
-            if (path.startsWith("/api/stats")) {
-                body = stats_provider_ ? stats_provider_() : "{}";
-                c->write("HTTP/1.1 200 OK\r\nContent-Type: "
-                         "application/json\r\nContent-Length: " +
-                         QByteArray::number(body.size()) +
-                         "\r\nConnection: close\r\n\r\n" + body);
-            } else if (path.startsWith("/api/report")) {
-                body = report_text_.toUtf8();
-                c->write("HTTP/1.1 200 OK\r\nContent-Type: "
-                         "text/plain\r\nContent-Length: " +
-                         QByteArray::number(body.size()) +
-                         "\r\nConnection: close\r\n\r\n" + body);
+            if (path.startsWith("/api/")) {
+                // /api/* exposes live stats and the full report (serial
+                // numbers etc.) -> require the per-session token that was
+                // embedded in the dashboard URL.
+                bool auth_ok = !dash_token_.isEmpty() &&
+                               req.indexOf(dash_token_.toLatin1()) >= 0;
+                if (!auth_ok) {
+                    c->write("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0"
+                             "\r\nConnection: close\r\n\r\n");
+                    c->disconnectFromHost();
+                    return;
+                }
+                if (path.startsWith("/api/stats")) {
+                    body = stats_provider_ ? stats_provider_() : "{}";
+                    c->write("HTTP/1.1 200 OK\r\nContent-Type: "
+                             "application/json\r\nContent-Length: " +
+                             QByteArray::number(body.size()) +
+                             "\r\nConnection: close\r\n\r\n" + body);
+                } else if (path.startsWith("/api/report")) {
+                    body = report_text_.toUtf8();
+                    c->write("HTTP/1.1 200 OK\r\nContent-Type: "
+                             "text/plain\r\nContent-Length: " +
+                             QByteArray::number(body.size()) +
+                             "\r\nConnection: close\r\n\r\n" + body);
+                } else {
+                    c->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0"
+                             "\r\nConnection: close\r\n\r\n");
+                }
             } else {
                 body = dashboardHtml();
                 c->write("HTTP/1.1 200 OK\r\nContent-Type: "
@@ -492,7 +588,10 @@ QString OnlineServices::dashboardUrl() const {
         if (!ip.isEmpty()) break;
     }
     if (ip.isEmpty()) ip = "127.0.0.1";
-    return QString("http://%1:%2/").arg(ip).arg(dash_port_);
+    QString url = QString("http://%1:%2/").arg(ip).arg(dash_port_);
+    if (!dash_token_.isEmpty())
+        url += "?t=" + dash_token_;
+    return url;
 }
 
 } // namespace krad
@@ -538,9 +637,10 @@ footer{color:var(--d);font-size:11px;text-align:center;margin-top:16px}
 <footer>krad.device.info · refreshes every second</footer>
 <script>
 function fmt(n,u){return n>=1024?(n/1024).toFixed(1)+u[1]:n.toFixed(1)+u[0]}
+const tok=new URLSearchParams(location.search).get('t')||'';
 async function poll(){
  try{
-  const r=await fetch('/api/stats');const d=await r.json();
+  const r=await fetch('/api/stats'+(tok?'?t='+tok:''));const d=await r.json();
   document.getElementById('host').textContent=d.hostname+' · '+d.os+' · '+d.cores+' cores';
   const set=(id,v)=>{document.getElementById(id+'V').textContent=Math.round(v)+'%';
                      document.getElementById(id+'B').style.width=Math.min(100,v)+'%';

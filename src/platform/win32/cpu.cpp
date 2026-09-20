@@ -239,7 +239,6 @@ CpuInfo cpu_info() {
                     std::uint32_t kb = inf->Cache.CacheSize / 1024;
                     auto& cur = cache_sizes[key];
                     if (kb > cur) cur = kb;
-                    if (inf->Cache.Associativity == 0xFF) ;
                 }
                 p += inf->Size;
             }

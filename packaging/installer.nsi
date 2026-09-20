@@ -33,7 +33,7 @@ SetCompressor /SOLID lzma
 
 Section "Install"
     SetOutPath "$INSTDIR"
-    File "..\build-mingw\kraddeviceinfo.exe"
+    File "..\packaging\msi-src\kraddeviceinfo.exe"
     File "..\LICENSE"
     File "..\README.md"
 
